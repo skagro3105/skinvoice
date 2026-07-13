@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Invoice History — SK Agro Chemicals</title>
+
+    <meta name="description" content="SK Agro Chemicals Invoice History." />
+    <!-- Favicon & PWA setup (same as index.html) -->
+    <link rel="shortcut icon" href="public/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="16x16" href="public/favicon-16x16.jpg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="public/favicon-32x32.jpg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="public/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="SK Agro" />
+    <link rel="manifest" href="public/manifest.json" />
+    <meta name="theme-color" content="#10b981" />
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    
+    <!-- Reuse the same global styles -->
+    <link rel="stylesheet" href="css/main.css?v=1.0.2">
+    
+    <style>
+        body { 
+          background: var(--bg-main); 
+          color: var(--text-main);
+          font-family: 'Inter', sans-serif;
+          transition: background 0.3s;
+        }
+        
+        #history-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            height: 64px;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .history-container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 24px;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .history-title {
+            font-size: 28px;
+            font-weight: 900;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: -0.03em;
+        }
+
+        .search-box {
+            display: flex;
+            align-items: center;
+            background: var(--bg-card);
+            border: 1.5px solid var(--border);
+            border-radius: 14px;
+            padding: 10px 16px;
+            width: 300px;
+            max-width: 100%;
+            transition: all 0.2s;
+            box-shadow: var(--shadow-sm);
+        }
+        .search-box:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--accent-light);
+        }
+        .search-box input {
+            background: transparent !important;
+            border: none;
+            outline: none;
+            width: 100%;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            margin-left: 8px;
+            color: var(--text-main);
+        }
+
+        /* ── Desktop Table ── */
+        .history-card {
+            background: var(--bg-card);
+            border-radius: 20px;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .history-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            text-align: left;
+        }
+
+        .history-table th {
+            background: var(--bg-banner);
+            padding: 16px 18px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            border-bottom: 2px solid var(--border);
+            white-space: nowrap;
+        }
+
+        .history-table td {
+            padding: 18px 18px;
+            font-size: 14px;
+            vertical-align: middle;
+            color: var(--text-sub);
+        }
+
+        .history-table tbody tr {
+            background: transparent;
+            transition: background 0.15s;
+        }
+
+        .history-table tbody tr:not(:last-child) td {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .history-table tbody tr:hover td {
+            background: var(--bg-banner-hover);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .badge-saved { background: var(--accent-light); color: var(--accent); }
+        .badge-draft { background: rgba(234, 179, 8, 0.1); color: #eab308; }
+
+        .btn-sm { padding: 6px 14px; font-size: 12px; }
+        
+        .action-cell {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .empty-state {
+            padding: 80px 20px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        /* ── Mobile Card Layout ── */
+        @media (max-width: 768px) {
+            .history-container { padding: 0 14px; margin: 16px auto; }
+            .history-header { margin-bottom: 16px; gap: 12px; }
+            .history-title { font-size: 22px; gap: 8px; }
+            .history-title .material-symbols-outlined { font-size: 22px !important; }
+
+            /* Search full width on mobile */
+            .search-box { width: 100%; border-radius: 12px; padding: 9px 14px; }
+
+            /* Hide the desktop card wrapper on mobile */
+            .history-card { background: transparent; border: none; box-shadow: none; border-radius: 0; }
+            .table-responsive { overflow: visible; }
+
+            /* Hide table structure entirely */
+            .history-table { display: block; }
+            .history-table thead { display: none; }
+            .history-table tbody { display: flex; flex-direction: column; gap: 12px; }
+            .history-table tbody tr {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                grid-template-rows: auto auto auto;
+                background: var(--bg-card);
+                border: 1.5px solid var(--border);
+                border-radius: 16px;
+                overflow: hidden;
+                box-shadow: var(--shadow-md);
+                padding: 0;
+                gap: 0;
+            }
+            .history-table tbody tr:not(:last-child) td {
+                border-bottom: none;
+            }
+
+            /* Each td becomes a positioned cell in the grid */
+            .history-table tbody tr td {
+                padding: 10px 14px;
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                font-size: 13px;
+                color: var(--text-main);
+                border-bottom: none;
+                background: transparent;
+            }
+
+            /* Label above value */
+            .history-table tbody tr td::before {
+                content: attr(data-label);
+                font-size: 9px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.07em;
+                color: var(--text-muted);
+                line-height: 1;
+            }
+
+            /* INV # — top left, accent colored */
+            .history-table tbody tr td:nth-child(1) {
+                grid-column: 1;
+                grid-row: 1;
+                border-right: 1px solid var(--border);
+                border-bottom: 1px solid var(--border);
+            }
+            .history-table tbody tr td:nth-child(1) strong {
+                font-size: 15px;
+                font-weight: 800;
+                color: var(--primary);
+            }
+
+            /* DATE — top right */
+            .history-table tbody tr td:nth-child(2) {
+                grid-column: 2;
+                grid-row: 1;
+                border-bottom: 1px solid var(--border);
+                text-align: right;
+                align-items: flex-end;
+            }
+
+            /* CUSTOMER NAME — spans full width, row 2 */
+            .history-table tbody tr td:nth-child(3) {
+                grid-column: 1 / -1;
+                grid-row: 2;
+                border-bottom: 1px solid var(--border);
+                font-weight: 600;
+                font-size: 14px;
+            }
+
+            /* MOBILE — row 3 left */
+            .history-table tbody tr td:nth-child(4) {
+                grid-column: 1;
+                grid-row: 3;
+                border-right: 1px solid var(--border);
+                font-size: 13px;
+            }
+
+            /* TOTAL AMOUNT — row 3 right */
+            .history-table tbody tr td:nth-child(5) {
+                grid-column: 2;
+                grid-row: 3;
+                text-align: right;
+                align-items: flex-end;
+                font-size: 14px;
+                font-weight: 700;
+                color: var(--primary) !important;
+            }
+
+            /* ACTION — full-width footer row */
+            .history-table tbody tr td:nth-child(6) {
+                grid-column: 1 / -1;
+                grid-row: 4;
+                background: var(--bg-banner);
+                border-top: 1.5px solid var(--border);
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 8px;
+                padding: 10px 14px;
+            }
+            .history-table tbody tr td:nth-child(6)::before {
+                display: none; /* no label for action row */
+            }
+
+            /* Remove icon+text on small buttons, show only icon */
+            .action-cell .btn-sm {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                padding: 7px 14px;
+                font-size: 12px;
+                border-radius: 10px;
+            }
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div id="toolbar">
+        <div class="toolbar-brand">
+            <a class="back-arrow-tool" href="index.html" title="Back to Builder">
+                <span class="material-symbols-outlined">arrow_back</span>
+            </a>
+            <img src="public/logo.jpg" alt="Logo" class="nav-logo" id="navbar-logo" onerror="this.style.display='none'" />
+            <div class="brand-text">
+                <span class="brand-name">SK Agro</span>
+                <span class="brand-sub">Chemicals</span>
+            </div>
+        </div>
+        <div style="flex-grow:1;"></div>
+        <div id="toolbar-right">
+            <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
+                <span id="theme-icon" class="material-symbols-outlined">dark_mode</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="history-container">
+        <div class="history-header">
+            <div class="history-title">
+                <span class="material-symbols-outlined" style="color:#10b981;font-size:28px">history</span>
+                Invoice History
+            </div>
+            <div class="search-box">
+                <span class="material-symbols-outlined" style="color:#94a3b8;font-size:20px">search</span>
+                <input type="text" id="history-search" placeholder="Search customer, inv #..." autocomplete="off" />
+            </div>
+        </div>
+
+        <div class="history-card">
+            <div class="table-responsive">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Inv #</th>
+                            <th>Date</th>
+                            <th>Customer Name</th>
+                            <th>Mobile</th>
+                            <th style="text-align:right">Total Amount</th>
+                            <th style="text-align:right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-tbody">
+                        <tr id="loading-row">
+                            <td colspan="7">
+                                <div class="loading-row-content">
+                                    <span class="material-symbols-outlined spinner-icon">autorenew</span>
+                                    Loading invoices...
+                                </div>
+                            </td>
+                        </tr>
+                        <tr id="error-row" style="display:none">
+                            <td colspan="7" style="text-align:center; padding: 40px; color:var(--danger-text);">
+                                Failed to load history. Please check your backend connection.
+                            </td>
+                        </tr>
+                        <tr id="empty-row" style="display:none">
+                            <td colspan="7">
+                                <div class="empty-state">
+                                    <span class="material-symbols-outlined" style="font-size:48px;color:var(--text-faint);margin-bottom:12px;">receipt_long</span>
+                                    <div style="font-size:16px;font-weight:600;color:var(--text-main);margin-bottom:4px;">No Invoices Found</div>
+                                    <div style="font-size:13px;color:var(--text-muted);">Save an invoice in the builder to see it here.</div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Scripts -->
+    <script>
+      // Load current theme safely
+      try {
+        document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    </script>
+    <script src="js/api.js?v=1.0.2"></script>
+    <script src="js/history.js?v=1.0.2"></script>
+</body>
+</html>
