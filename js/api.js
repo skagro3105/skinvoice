@@ -32,9 +32,70 @@ const SUPABASE_URL = 'https://uqtuozxvnfsnyystiehl.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rcotKh3gunvWw5RMJN_msA_ndNAgIY8';
 
 // ─── CORE FETCH WRAPPER FOR SUPABASE ──────────────────────────────────────────
+async function refreshToken() {
+  const refreshTokenVal = safeStorage.getItem('inv_refresh_token');
+  if (!refreshTokenVal) {
+    throw new Error('No refresh token available');
+  }
+
+  const url = `${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ refresh_token: refreshTokenVal })
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Refresh token failed: ${res.status} - ${errText}`);
+  }
+
+  const json = await res.json();
+  safeStorage.setItem('inv_auth_token', json.access_token);
+  if (json.refresh_token) {
+    safeStorage.setItem('inv_refresh_token', json.refresh_token);
+  }
+  if (json.expires_in) {
+    const expiresAt = Date.now() + (json.expires_in - 60) * 1000; // 1 minute safety buffer
+    safeStorage.setItem('inv_token_expires_at', expiresAt);
+  }
+  return json.access_token;
+}
+
+async function getValidToken() {
+  const token = safeStorage.getItem('inv_auth_token');
+  if (!token) return SUPABASE_KEY;
+
+  const expiresAt = safeStorage.getItem('inv_token_expires_at');
+  const refreshTokenVal = safeStorage.getItem('inv_refresh_token');
+
+  // If token is expired (or close to it), and we have a refresh token, try refreshing
+  if (expiresAt && Date.now() > parseInt(expiresAt, 10) && refreshTokenVal) {
+    try {
+      console.log('Access token expired, attempting to refresh...');
+      return await refreshToken();
+    } catch (e) {
+      console.error('Failed to refresh token automatically:', e);
+      // Fallback to current token, let fetch trigger 401 retry
+    }
+  }
+  return token;
+}
+
+async function handleFetchResponse(res) {
+  const contentType = res.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    return await res.json();
+  }
+  return null;
+}
+
 async function _supabaseFetch(path, options = {}) {
   const url = `${SUPABASE_URL}/rest/v1${path}`;
-  const token = safeStorage.getItem('inv_auth_token') || SUPABASE_KEY;
+  let token = await getValidToken();
   const headers = {
     'apikey': SUPABASE_KEY,
     'Authorization': `Bearer ${token}`,
@@ -42,15 +103,38 @@ async function _supabaseFetch(path, options = {}) {
     ...options.headers
   };
   
-  const res = await fetch(url, {
+  let res = await fetch(url, {
     ...options,
     headers
   });
   
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) {
+      const refreshTokenVal = safeStorage.getItem('inv_refresh_token');
+      if (refreshTokenVal) {
+        try {
+          console.log('Received unauthorized status, trying manual refresh token refresh...');
+          token = await refreshToken();
+          const retryHeaders = {
+            ...headers,
+            'Authorization': `Bearer ${token}`
+          };
+          res = await fetch(url, {
+            ...options,
+            headers: retryHeaders
+          });
+          if (res.ok) {
+            return await handleFetchResponse(res);
+          }
+        } catch (refreshErr) {
+          console.error('Manual refresh retry failed:', refreshErr);
+        }
+      }
+
       // Clear expired credentials and reload
       safeStorage.removeItem('inv_auth_token');
+      safeStorage.removeItem('inv_refresh_token');
+      safeStorage.removeItem('inv_token_expires_at');
       safeStorage.removeItem('inv_auth');
       safeStorage.removeItem('inv_user_mobile');
       window.location.reload();
@@ -60,11 +144,7 @@ async function _supabaseFetch(path, options = {}) {
     throw new Error(`Supabase error: ${res.status} - ${errText}`);
   }
   
-  const contentType = res.headers.get('content-type');
-  if (contentType && contentType.includes('application/json')) {
-    return await res.json();
-  }
-  return null;
+  return await handleFetchResponse(res);
 }
 
 // ─── AUTHENTICATION API ──────────────────────────────────────────────────────
@@ -91,6 +171,13 @@ async function login(usernameOrEmail, password) {
     
     // Store token and credentials in local storage
     safeStorage.setItem('inv_auth_token', json.access_token);
+    if (json.refresh_token) {
+      safeStorage.setItem('inv_refresh_token', json.refresh_token);
+    }
+    if (json.expires_in) {
+      const expiresAt = Date.now() + (json.expires_in - 60) * 1000; // 1 minute safety buffer
+      safeStorage.setItem('inv_token_expires_at', expiresAt);
+    }
     
     const username = email.split('@')[0];
     const capitalizedUser = username.charAt(0).toUpperCase() + username.slice(1);
